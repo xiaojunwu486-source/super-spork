@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+.Python
+.venv/
+venv/
+env/
+
+# Local secrets
+config.json
+.env
+
+# Runtime data
+uploads/
+output/
+review_rules/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wav
+
+# WorkBuddy/Codex local metadata
+.workbuddy/
+
+# Reports / generated assets
+*.docx
+*.pdf
+_tmp_*.png

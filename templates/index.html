@@ -1,0 +1,2969 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信息流素材分析 Agent</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+    background: #0F0F12;
+    color: #E8E6E1;
+    min-height: 100vh;
+  }
+
+  /* ====== Header ====== */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 32px;
+    border-bottom: 1px solid #1E1E24;
+    background: #13131A;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .logo {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #7C6AFF, #FF6B8A);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: #fff;
+  }
+  .header h1 {
+    font-size: 18px; font-weight: 600; color: #F0EDE8;
+  }
+  .header .subtitle {
+    font-size: 12px; color: #6B6A66; margin-top: 2px;
+  }
+  .header-right {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #2ECC71;
+    box-shadow: 0 0 6px rgba(46,204,113,0.5);
+  }
+  .status-dot.offline { background: #E74C3C; box-shadow: 0 0 6px rgba(231,76,60,0.5); }
+  .status-text { font-size: 12px; color: #6B6A66; }
+
+  /* ====== Main Layout ====== */
+  .main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 32px 48px;
+  }
+
+  .workspace-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .summary-card {
+    background: #16161E;
+    border: 1px solid #1E1E24;
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .summary-label {
+    color: #777672;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .summary-value {
+    color: #F0EDE8;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .summary-note {
+    color: #5F5E5A;
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  /* ====== Upload Zone ====== */
+  .upload-zone {
+    border: 2px dashed #2A2A36;
+    border-radius: 8px;
+    padding: 38px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: #16161E;
+    margin-bottom: 26px;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: #7C6AFF;
+    background: #1A1A28;
+  }
+  .upload-icon {
+    width: 64px; height: 64px;
+    margin: 0 auto 20px;
+    background: #1E1E28;
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+  .upload-zone h2 {
+    font-size: 18px; font-weight: 600; color: #F0EDE8; margin-bottom: 8px;
+  }
+  .upload-zone p {
+    font-size: 13px; color: #6B6A66;
+  }
+  .upload-zone .formats {
+    margin-top: 12px; font-size: 12px; color: #4A4A56;
+  }
+
+  /* ====== Section ====== */
+  .section {
+    margin-bottom: 32px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 14px;
+  }
+  .section-title {
+    font-size: 15px; font-weight: 600; color: #C8C6C1;
+  }
+  .history-tools {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .history-search {
+    width: 220px;
+    background: #15151E;
+    border: 1px solid #282833;
+    border-radius: 8px;
+    color: #E8E6E1;
+    padding: 9px 11px;
+    font-size: 12px;
+  }
+  .history-filter {
+    border: 1px solid #282833;
+    background: #15151E;
+    color: #8B8A86;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .history-filter.active {
+    color: #F0EDE8;
+    border-color: #7C6AFF;
+    background: rgba(124,106,255,0.14);
+  }
+
+  /* ====== History List ====== */
+  .history-list {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    background: #16161E;
+    border: 1px solid #1E1E24;
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+  .history-item:hover {
+    border-color: #7C6AFF;
+    background: #1A1A28;
+  }
+  .history-info {
+    display: flex; align-items: flex-start; gap: 14px;
+    flex: 1;
+    min-width: 0;
+  }
+  .history-thumb {
+    width: 48px; height: 64px;
+    background: #1E1E28;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .history-thumb img {
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .history-name {
+    font-size: 14px; font-weight: 500; color: #E8E6E1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 440px;
+  }
+  .history-meta {
+    font-size: 12px; color: #6B6A66; margin-top: 3px;
+  }
+
+  /* ====== Tags & Ad Data in History ====== */
+  .history-tags-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .tag-category { background: rgba(124,106,255,0.15); color: #7C6AFF; }
+  .tag-style { background: rgba(230,126,34,0.15); color: #E67E22; }
+  .tag-keyword { background: rgba(46,204,113,0.12); color: #2ECC71; }
+  .ad-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .ad-tag-ctr { background: rgba(52,152,219,0.15); color: #3498DB; }
+  .ad-tag-cvr { background: rgba(155,89,182,0.15); color: #9B59B6; }
+  .ad-tag-comp { background: rgba(241,196,15,0.15); color: #F1C40F; }
+
+  /* ====== History Right Side ====== */
+  .history-right {
+    display: flex; gap: 8px; align-items: center; flex-shrink: 0;
+  }
+  .history-score {
+    text-align: center;
+    min-width: 52px;
+  }
+  .history-score .num {
+    font-size: 18px; font-weight: 700;
+  }
+  .history-score .label {
+    font-size: 11px; color: #6B6A66;
+  }
+  .score-excellent { color: #2ECC71; }
+  .score-good { color: #F39C12; }
+  .score-fair { color: #E74C3C; }
+
+  /* ====== Action Buttons ====== */
+  .action-btn {
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    background: #1E1E28;
+    border: 1px solid #2A2A36;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    color: #C8C6C1;
+  }
+  .action-btn:hover {
+    border-color: #7C6AFF;
+    background: #1A1A28;
+  }
+  .action-btn.delete-btn:hover {
+    border-color: #E74C3C;
+    background: rgba(231,76,60,0.1);
+  }
+
+  /* ====== Export Buttons ====== */
+  .export-actions {
+    display: flex; gap: 6px; align-items: center;
+  }
+  .export-btn {
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid #2A2A36;
+    background: #1E1E28;
+    color: #8B8A86;
+    transition: all 0.2s;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .export-btn:hover {
+    border-color: #7C6AFF;
+    color: #7C6AFF;
+    background: #1A1A28;
+  }
+  .export-btn.exporting {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  .history-item .export-actions {
+    display: none;
+  }
+  .history-item.analyzed .export-actions {
+    display: flex;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #4A4A56;
+    font-size: 14px;
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+
+  /* ====== Settings Modal ====== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: #1A1A24;
+    border: 1px solid #2A2A36;
+    border-radius: 16px;
+    padding: 32px;
+    width: 480px;
+    max-width: 90vw;
+  }
+  .modal h2 {
+    font-size: 18px; font-weight: 600; margin-bottom: 20px;
+  }
+  .form-group {
+    margin-bottom: 14px;
+  }
+  .form-group label {
+    display: block;
+    font-size: 13px; color: #8B8A86; margin-bottom: 6px;
+  }
+  .form-group input {
+    width: 100%;
+    padding: 10px 14px;
+    background: #13131A;
+    border: 1px solid #2A2A36;
+    border-radius: 8px;
+    color: #E8E6E1;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-group input:focus {
+    border-color: #7C6AFF;
+  }
+  .form-group .hint {
+    font-size: 12px; color: #4A4A56; margin-top: 4px;
+  }
+  .modal-actions {
+    display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px;
+  }
+  .btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: #7C6AFF;
+    color: #fff;
+  }
+  .btn-primary:hover { background: #6B5AF0; }
+  .btn-ghost {
+    background: transparent;
+    color: #8B8A86;
+    border: 1px solid #2A2A36;
+  }
+  .btn-ghost:hover { border-color: #4A4A56; color: #C8C6C1; }
+
+  /* ====== Breakdown Table ====== */
+  .breakdown-section { margin-bottom: 20px; }
+  .breakdown-section-title {
+    font-size: 14px; font-weight: 600; color: #7C6AFF;
+    margin-bottom: 10px; padding-bottom: 6px;
+    border-bottom: 1px solid #2A2A36;
+  }
+  .breakdown-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    border: 1px solid #2A2A36; border-radius: 8px; overflow: hidden;
+  }
+  .breakdown-table th {
+    text-align: left; padding: 10px 12px;
+    background: #1A1A22; color: #B0AFA9;
+    font-weight: 600; border-bottom: 1px solid #2A2A36;
+    font-size: 13px;
+  }
+  .breakdown-table td {
+    padding: 12px; border-bottom: 1px solid #1E1E24;
+    color: #E8E6E1; vertical-align: top;
+    line-height: 1.6;
+  }
+  .breakdown-table tr:last-child td { border-bottom: none; }
+  .breakdown-table .cell-label {
+    color: #8B8A86; font-weight: 500; width: 100px;
+    white-space: nowrap;
+  }
+  .breakdown-table .cell-value { color: #E8E6E1; }
+  .breakdown-table .cell-value pre {
+    margin: 0; white-space: pre-wrap; word-break: break-word;
+    font-family: inherit; font-size: 13px; line-height: 1.5;
+  }
+  .breakdown-tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; margin-right: 4px; margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .breakdown-tag.high { background: rgba(231,76,60,0.15); color: #E74C3C; }
+  .breakdown-tag.medium { background: rgba(241,196,15,0.15); color: #F1C40F; }
+  .breakdown-tag.low { background: rgba(46,204,113,0.15); color: #2ECC71; }
+  .breakdown-empty {
+    text-align: center; padding: 40px; color: #6B6A66;
+  }
+
+  /* ====== Script Variants ====== */
+  .variant-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 14px;
+  }
+  .variant-card {
+    background: #15151E;
+    border: 1px solid #252532;
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .variant-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #E8E6E1;
+    margin-bottom: 10px;
+  }
+  .variant-muted {
+    color: #8B8A86;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .variant-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .variant-direction {
+    border: 1px solid #2A2A36;
+    border-radius: 8px;
+    padding: 12px;
+    background: #111119;
+  }
+  .variant-direction h4 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: #E8E6E1;
+  }
+  .variant-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(124,106,255,0.16);
+    color: #9B8CFF;
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+  .variant-vars {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .variant-var label {
+    display: block;
+    font-size: 12px;
+    color: #8B8A86;
+    margin-bottom: 5px;
+  }
+  .variant-var textarea {
+    width: 100%;
+    min-height: 74px;
+    resize: vertical;
+    background: #101018;
+    color: #E8E6E1;
+    border: 1px solid #2A2A36;
+    border-radius: 8px;
+    padding: 9px;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  @media (max-width: 900px) {
+    .variant-layout { grid-template-columns: 1fr; }
+    .variant-vars { grid-template-columns: 1fr; }
+  }
+
+  /* ====== Settings Icon ====== */
+  .settings-btn {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: #1E1E28;
+    border: 1px solid #2A2A36;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: #6B6A66;
+    font-size: 16px;
+    transition: all 0.2s;
+  }
+  .settings-btn:hover {
+    border-color: #7C6AFF;
+    color: #7C6AFF;
+  }
+
+  /* ====== Progress Panel (Single) ====== */
+  .progress-panel {
+    display: none;
+    background: #16161E;
+    border: 1px solid #1E1E24;
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 32px;
+  }
+  .progress-panel.active { display: block; }
+  .progress-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+  }
+  .progress-title {
+    font-size: 15px; font-weight: 600; color: #F0EDE8;
+  }
+  .progress-filename {
+    font-size: 12px; color: #6B6A66; margin-top: 4px;
+  }
+  .progress-bar-track {
+    width: 100%;
+    height: 6px;
+    background: #1E1E28;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #7C6AFF, #A78BFA);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+  .steps-list {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .step-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px;
+    background: #1A1A24;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+  .step-icon {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; flex-shrink: 0;
+    background: #1E1E28; color: #4A4A56;
+  }
+  .step-item.active .step-icon {
+    background: #7C6AFF; color: #fff;
+    animation: pulse 1.5s infinite;
+  }
+  .step-item.done .step-icon {
+    background: #2ECC71; color: #fff;
+  }
+  .step-item.error .step-icon {
+    background: #E74C3C; color: #fff;
+  }
+  .step-label { color: #8B8A86; }
+  .step-item.active .step-label { color: #E8E6E1; }
+  .step-item.done .step-label { color: #C8C6C1; }
+  .step-detail {
+    font-size: 12px; color: #4A4A56; margin-top: 2px;
+  }
+  .step-item.active .step-detail { color: #7C6AFF; }
+  .step-item.done .step-detail { color: #2ECC71; }
+
+  /* ====== Batch Progress Panel ====== */
+  .batch-progress-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .batch-item {
+    background: #1A1A24;
+    border-radius: 10px;
+    padding: 12px 16px;
+  }
+  .batch-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .batch-item-name {
+    font-size: 13px;
+    color: #E8E6E1;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 400px;
+  }
+  .batch-item-status {
+    font-size: 11px;
+    color: #6B6A66;
+    flex-shrink: 0;
+    margin-left: 12px;
+  }
+  .batch-item-bar-track {
+    width: 100%;
+    height: 4px;
+    background: #2A2A36;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .batch-item-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #7C6AFF, #A78BFA);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+  .batch-item.done { opacity: 0.5; }
+  .batch-item.error { border: 1px solid rgba(231,76,60,0.4); }
+  .batch-item-status.done-text { color: #2ECC71; }
+  .batch-item-status.error-text { color: #E74C3C; }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(124,106,255,0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(124,106,255,0); }
+  }
+
+  /* ====== Report Preview Panel ====== */
+  .preview-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .preview-overlay.active { display: block; opacity: 1; }
+  .preview-panel {
+    position: fixed;
+    top: 0; right: 0;
+    width: 720px;
+    max-width: 95vw;
+    height: 100vh;
+    background: #13131A;
+    border-left: 1px solid #1E1E24;
+    z-index: 201;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .preview-panel.active { transform: translateX(0); }
+  .preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid #1E1E24;
+    flex-shrink: 0;
+    gap: 12px;
+  }
+  .preview-header-title {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 600;
+    color: #F0EDE8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .preview-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .preview-close {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: #1E1E28;
+    border: 1px solid #2A2A36;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    color: #8B8A86;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .preview-close:hover { border-color: #E74C3C; color: #E74C3C; background: rgba(231,76,60,0.1); }
+  .preview-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .preview-body::-webkit-scrollbar { width: 6px; }
+  .preview-body::-webkit-scrollbar-track { background: transparent; }
+  .preview-body::-webkit-scrollbar-thumb { background: #2A2A36; border-radius: 3px; }
+  .preview-body::-webkit-scrollbar-thumb:hover { background: #3A3A46; }
+  .preview-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    color: #6B6A66;
+    font-size: 14px;
+    gap: 16px;
+  }
+  .preview-loading .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid #2A2A36;
+    border-top-color: #7C6AFF;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Preview Sections */
+  .pv-section {
+    margin-bottom: 28px;
+  }
+  .pv-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #C8C6C1;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #1E1E24;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pv-section-title .pv-icon { font-size: 16px; }
+  .pv-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .pv-info-with-cover {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .pv-cover-img {
+    width: 120px;
+    height: 213px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #2A2A36;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .pv-cover-img:hover {
+    transform: scale(1.02);
+    border-color: #7C6AFF;
+  }
+  .pv-info-item {
+    background: #1A1A24;
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .pv-info-label {
+    font-size: 11px;
+    color: #6B6A66;
+    margin-bottom: 4px;
+  }
+  .pv-info-value {
+    font-size: 14px;
+    color: #E8E6E1;
+    font-weight: 500;
+  }
+  .pv-text-block {
+    background: #1A1A24;
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #C8C6C1;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .pv-bullet-list {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .pv-bullet-list li {
+    background: #1A1A24;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #C8C6C1;
+    border-left: 3px solid #2A2A36;
+  }
+  .pv-bullet-list li.highlight {
+    border-left-color: #7C6AFF;
+    background: rgba(124,106,255,0.05);
+  }
+  .pv-sub-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #8B8A86;
+    margin: 16px 0 8px;
+    padding-left: 2px;
+  }
+
+  /* Score Grid */
+  .pv-score-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .pv-score-card {
+    background: #1A1A24;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .pv-score-card .score-num {
+    font-size: 24px;
+    font-weight: 700;
+    min-width: 40px;
+    text-align: center;
+  }
+  .pv-score-card .score-info {
+    flex: 1;
+  }
+  .pv-score-card .score-dim {
+    font-size: 12px;
+    color: #8B8A86;
+    margin-bottom: 2px;
+  }
+  .pv-score-card .score-comment {
+    font-size: 11px;
+    color: #6B6A66;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .pv-score-overall {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, rgba(124,106,255,0.1), rgba(124,106,255,0.03));
+    border: 1px solid rgba(124,106,255,0.2);
+  }
+
+  /* Charts */
+  .pv-charts {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .pv-chart-box {
+    background: #1A1A24;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .pv-chart-label {
+    font-size: 12px;
+    color: #6B6A66;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+
+  /* Tags in preview */
+  .pv-tags-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .pv-ad-data-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .pv-ad-chip {
+    background: #1A1A24;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+  .pv-ad-chip .pv-ad-label { color: #6B6A66; }
+  .pv-ad-chip .pv-ad-value { color: #E8E6E1; font-weight: 600; margin-left: 4px; }
+
+  /* History item clickable */
+  .history-item { cursor: pointer; }
+  .history-item.analyzed:hover .history-name { color: #7C6AFF; }
+
+  /* Hide card-level export buttons */
+  .history-item .export-actions { display: none !important; }
+
+  @media (max-width: 860px) {
+    .main { padding: 20px 16px 36px; }
+    .workspace-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .section-header { align-items: flex-start; flex-direction: column; }
+    .history-search { width: 100%; }
+    .history-tools { width: 100%; }
+    .history-item { align-items: flex-start; gap: 12px; flex-direction: column; }
+    .history-right { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo">A</div>
+    <div>
+      <h1>信息流素材分析 Agent</h1>
+      <div class="subtitle">v0.3 — 投放数据录入 &amp; AI 评分校准</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">检查中...</span>
+    <div class="settings-btn" onclick="openSettings()" title="设置">&#9881;</div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <div class="workspace-summary">
+    <div class="summary-card">
+      <div class="summary-label">素材总数</div>
+      <div class="summary-value" id="sumTotal">-</div>
+      <div class="summary-note">历史素材池</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">已完成分析</div>
+      <div class="summary-value" id="sumAnalyzed">-</div>
+      <div class="summary-note">可生成报告/裂变</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">平均评分</div>
+      <div class="summary-value" id="sumAvgScore">-</div>
+      <div class="summary-note">仅统计已评分素材</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">脚本裂变</div>
+      <div class="summary-value" id="sumVariants">-</div>
+      <div class="summary-note">已生成裂变方案</div>
+    </div>
+  </div>
+
+  <!-- Progress Panel (Single) -->
+  <div class="progress-panel" id="progressPanel">
+    <div class="progress-header">
+      <div>
+        <div class="progress-title">正在处理视频</div>
+        <div class="progress-filename" id="progressFilename"></div>
+      </div>
+      <span id="progressPercent" style="font-size:14px; font-weight:600; color:#7C6AFF;">0%</span>
+    </div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+    <div class="steps-list" id="stepsList">
+      <div class="step-item" id="step-info">
+        <div class="step-icon">&#9432;</div>
+        <div>
+          <div class="step-label">读取视频信息</div>
+          <div class="step-detail" id="step-info-detail">等待中...</div>
+        </div>
+      </div>
+      <div class="step-item" id="step-frames">
+        <div class="step-icon">&#127909;</div>
+        <div>
+          <div class="step-label">提取关键帧</div>
+          <div class="step-detail" id="step-frames-detail">等待中...</div>
+        </div>
+      </div>
+      <div class="step-item" id="step-audio">
+        <div class="step-icon">&#127925;</div>
+        <div>
+          <div class="step-label">分离音频</div>
+          <div class="step-detail" id="step-audio-detail">等待中...</div>
+        </div>
+      </div>
+      <div class="step-item" id="step-asr">
+        <div class="step-icon">&#128172;</div>
+        <div>
+          <div class="step-label">语音识别 (Qwen ASR)</div>
+          <div class="step-detail" id="step-asr-detail">等待中...</div>
+        </div>
+      </div>
+      <div class="step-item" id="step-vl">
+        <div class="step-icon">&#128065;</div>
+        <div>
+          <div class="step-label">画面分析 (通义千问 VL)</div>
+          <div class="step-detail" id="step-vl-detail">等待中...</div>
+        </div>
+      </div>
+      <div class="step-item" id="step-analysis">
+        <div class="step-icon">&#129302;</div>
+        <div>
+          <div class="step-label">AI 综合分析 (DeepSeek)</div>
+          <div class="step-detail" id="step-analysis-detail">等待中...</div>
+        </div>
+      </div>
+      <div class="step-item" id="step-done">
+        <div class="step-icon">&#10003;</div>
+        <div>
+          <div class="step-label">处理完成</div>
+          <div class="step-detail" id="step-done-detail">等待中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch Progress Panel -->
+  <div class="progress-panel" id="batchPanel">
+    <div class="progress-header">
+      <div>
+        <div class="progress-title">批量处理视频</div>
+        <div class="progress-filename" id="batchInfo">准备中...</div>
+      </div>
+      <span id="batchPercent" style="font-size:14px; font-weight:600; color:#7C6AFF;">0%</span>
+    </div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="batchBar"></div>
+    </div>
+    <div class="batch-progress-list" id="batchList"></div>
+  </div>
+
+  <!-- Upload Zone -->
+  <div class="upload-zone" id="uploadZone"
+       ondragover="handleDragOver(event)"
+       ondragleave="handleDragLeave(event)"
+       ondrop="handleDrop(event)"
+       onclick="document.getElementById('fileInput').click()">
+    <div class="upload-icon">&#127909;</div>
+    <h2>拖拽视频文件到此处（支持多选）</h2>
+    <p>或点击选择文件上传</p>
+    <div class="formats">支持 MP4 / MOV / AVI / MKV，建议 20 秒以内竖版视频，可同时选择多个文件</div>
+    <input type="file" id="fileInput" accept=".mp4,.mov,.avi,.mkv" multiple style="display:none" onchange="handleFileSelect(event)">
+  </div>
+
+  <!-- History -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">分析历史</div>
+      <div class="history-tools">
+        <input class="history-search" id="historySearch" placeholder="搜索素材名/标签" oninput="renderHistory()">
+        <button class="history-filter active" data-filter="all" onclick="setHistoryFilter('all')">全部</button>
+        <button class="history-filter" data-filter="analyzed" onclick="setHistoryFilter('analyzed')">已分析</button>
+        <button class="history-filter" data-filter="error" onclick="setHistoryFilter('error')">出错</button>
+        <button class="history-filter" data-filter="variants" onclick="setHistoryFilter('variants')">已裂变</button>
+      </div>
+    </div>
+    <div class="history-list" id="historyList">
+      <div class="empty-state">
+        <div class="icon">&#128194;</div>
+        <div>还没有分析记录</div>
+        <div style="margin-top:6px; font-size:12px;">上传一支视频开始分析</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h2>&#9881; API 配置</h2>
+    <div class="form-group">
+      <label>DeepSeek API Key</label>
+      <input type="password" id="inputDeepseekKey" placeholder="sk-...">
+      <div class="hint">用于文字分析和跑量归因 (deepseek-v4-flash)</div>
+    </div>
+    <div class="form-group">
+      <label>通义千问 DashScope API Key</label>
+      <input type="password" id="inputQwenKey" placeholder="sk-...">
+      <div class="hint">用于视频关键帧画面分析 (qwen-vl-plus)</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeSettings()">取消</button>
+      <button class="btn btn-primary" onclick="saveSettings()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ad Data Modal -->
+<div class="modal-overlay" id="adDataModal">
+  <div class="modal" style="width:560px;">
+    <h2>&#128200; 录入投放数据</h2>
+    <p style="font-size:13px;color:#6B6A66;margin-bottom:16px;">全部选填，数据将用于 AI 分析校准评分和跑量归因。带 <span style="color:#7C6AFF;">&#8635;</span> 的字段可自动计算。</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <div class="form-group" style="flex:1;min-width:140px;">
+        <label>消耗 (元)</label>
+        <input type="number" id="inputCost" placeholder="500" step="0.01" min="0" oninput="autoCalcRates()">
+        <div class="hint">广告花费金额</div>
+      </div>
+      <div class="form-group" style="flex:1;min-width:140px;">
+        <label>展示次数</label>
+        <input type="number" id="inputImpressions" placeholder="50000" step="1" min="0" oninput="autoCalcRates()">
+        <div class="hint">广告展示的总次数</div>
+      </div>
+      <div class="form-group" style="flex:1;min-width:140px;">
+        <label>点击次数</label>
+        <input type="number" id="inputClicks" placeholder="1500" step="1" min="0" oninput="autoCalcRates()">
+        <div class="hint">用户点击次数</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <div class="form-group" style="flex:1;min-width:140px;">
+        <label>CTR (%) <span style="color:#7C6AFF;">&#8635;</span></label>
+        <input type="number" id="inputCTR" placeholder="自动计算" step="0.01" min="0">
+        <div class="hint">点击率 (点击/展示)</div>
+      </div>
+      <div class="form-group" style="flex:1;min-width:140px;">
+        <label>转化数</label>
+        <input type="number" id="inputConversions" placeholder="60" step="1" min="0" oninput="autoCalcRates()">
+        <div class="hint">完成转化的用户数</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <div class="form-group" style="flex:1;min-width:140px;">
+        <label>CVR (%) <span style="color:#7C6AFF;">&#8635;</span></label>
+        <input type="number" id="inputCVR" placeholder="自动计算" step="0.01" min="0">
+        <div class="hint">转化率 (转化/点击)</div>
+      </div>
+      <div class="form-group" style="flex:1;min-width:140px;">
+        <label>CPA (元) <span style="color:#7C6AFF;">&#8635;</span></label>
+        <input type="number" id="inputCPA" placeholder="自动计算" step="0.01" min="0">
+        <div class="hint">平均转化成本 (消耗/转化)</div>
+      </div>
+      <div class="form-group" style="flex:1;min-width:140px;">
+        <label>完播率 (%)</label>
+        <input type="number" id="inputCompletion" placeholder="45" step="0.01" min="0">
+        <div class="hint">完整观看占比</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="adDataSkipBtn" onclick="skipAdData()">跳过</button>
+      <button class="btn btn-primary" id="adDataSaveBtn" onclick="saveAdData()">保存数据并上传</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tags Edit Modal -->
+<div class="modal-overlay" id="tagsModal">
+  <div class="modal">
+    <h2>&#127991; 编辑标签</h2>
+    <div class="form-group">
+      <label>品类</label>
+      <input type="text" id="inputCategory" placeholder="例如: 日用品、美妆、线索广告">
+    </div>
+    <div class="form-group">
+      <label>风格</label>
+      <input type="text" id="inputStyle" placeholder="例如: 口播、剧情、测评">
+    </div>
+    <div class="form-group">
+      <label>关键词标签（逗号分隔）</label>
+      <input type="text" id="inputTags" placeholder="例如: 痛点引入, 产品展示, 价格引导">
+      <div class="hint">多个标签用逗号分隔</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeTagsModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveTags()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Breakdown Modal -->
+<div class="modal-overlay" id="breakdownModal" onclick="if(event.target===this)closeBreakdownModal()">
+  <div class="modal" style="width:900px;max-height:85vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2>&#128220; 简洁内容报告</h2>
+      <button class="btn btn-ghost" onclick="closeBreakdownModal()" style="padding:6px 12px;">&#10005;</button>
+    </div>
+    <div id="breakdownContent" style="overflow-y:auto;flex:1;">
+      <div style="text-align:center;padding:40px;color:#6B6A66;">
+        <div class="spinner" style="margin:0 auto 16px;"></div>
+        <div>正在生成简洁内容报告...</div>
+        <div style="font-size:12px;margin-top:8px;">首次生成需要调用 DeepSeek API，约 10-30 秒</div>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:12px;border-top:1px solid #1E1E24;padding-top:12px;">
+      <button class="btn btn-ghost" onclick="closeBreakdownModal()">关闭</button>
+      <button class="btn btn-primary" id="breakdownRegenBtn" onclick="regenerateBreakdown()" style="display:none;">重新生成</button>
+    </div>
+  </div>
+</div>
+
+<!-- Script Variants Modal -->
+<div class="modal-overlay" id="scriptVariantsModal" onclick="if(event.target===this)closeScriptVariantsModal()">
+  <div class="modal" style="width:1120px;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2>&#128161; 脚本裂变器</h2>
+      <button class="btn btn-ghost" onclick="closeScriptVariantsModal()" style="padding:6px 12px;">&#10005;</button>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:14px;">
+      <div class="form-group" style="margin:0;flex:1;">
+        <label>引用审核规范</label>
+        <select id="scriptReviewRuleSelect" onchange="if(currentVideoIdForScriptVariants) regenerateScriptVariants()" style="width:100%;background:#101018;color:#E8E6E1;border:1px solid #2A2A36;border-radius:8px;padding:10px;">
+          <option value="">不引用审核规范</option>
+        </select>
+      </div>
+      <button class="btn btn-ghost" onclick="openReviewRulesModal()" style="height:38px;">管理规范</button>
+    </div>
+    <div id="scriptVariantsContent" style="overflow-y:auto;flex:1;">
+      <div style="text-align:center;padding:40px;color:#6B6A66;">
+        <div class="spinner" style="margin:0 auto 16px;"></div>
+        <div>正在生成脚本裂变方案...</div>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:12px;border-top:1px solid #1E1E24;padding-top:12px;">
+      <button class="btn btn-ghost" onclick="closeScriptVariantsModal()">关闭</button>
+      <button class="btn btn-primary" id="scriptVariantsRegenBtn" onclick="regenerateScriptVariants()" style="display:none;">按变量/规范重新生成</button>
+    </div>
+  </div>
+</div>
+
+<!-- Review Rules Modal -->
+<div class="modal-overlay" id="reviewRulesModal" onclick="if(event.target===this)closeReviewRulesModal()">
+  <div class="modal" style="width:720px;max-height:82vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2>&#128737; 审核规范库</h2>
+      <button class="btn btn-ghost" onclick="closeReviewRulesModal()" style="padding:6px 12px;">&#10005;</button>
+    </div>
+    <div class="variant-card" style="margin-bottom:14px;">
+      <div class="variant-title">上传规范</div>
+      <div class="variant-muted" style="margin-bottom:10px;">当前版本支持 .txt / .md。可以放敏感词、禁用表达、替代表达、平台规则。</div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <input type="text" id="reviewRuleName" placeholder="例如：互乐-命理测算审核规范" style="flex:1;background:#101018;color:#E8E6E1;border:1px solid #2A2A36;border-radius:8px;padding:10px;">
+        <input type="file" id="reviewRuleFile" accept=".txt,.md" style="display:none;" onchange="uploadReviewRule()">
+        <button class="btn btn-primary" onclick="document.getElementById('reviewRuleFile').click()">选择并上传</button>
+      </div>
+    </div>
+    <div id="reviewRulesList" style="overflow-y:auto;flex:1;">
+      <div class="breakdown-empty">正在加载审核规范...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Report Preview Panel -->
+<div class="preview-overlay" id="previewOverlay" onclick="closeReportPreview()"></div>
+<div class="preview-panel" id="previewPanel">
+  <div class="preview-header">
+    <div class="preview-header-title" id="previewTitle">加载中...</div>
+    <div class="preview-header-actions">
+      <a class="export-btn" id="pvExportWord" onclick="exportReport(currentPreviewVideoId, 'word', this)">&#128196; Word</a>
+      <a class="export-btn" id="pvExportPdf" onclick="exportReport(currentPreviewVideoId, 'pdf', this)">&#128209; PDF</a>
+      <div class="preview-close" onclick="closeReportPreview()" title="关闭">&#10005;</div>
+    </div>
+  </div>
+  <div class="preview-body" id="previewBody">
+    <div class="preview-loading">
+      <div class="spinner"></div>
+      <div>正在加载分析报告...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== State ==========
+let currentVideoIdForAdData = null;
+let currentVideoIdForTags = null;
+let pendingAdDataVideoIds = [];  // batch: videos waiting for ad data input
+let pendingUploadFile = null;    // single upload: file waiting for ad data input before upload
+let isPreUploadMode = false;     // true = ad data modal is for pre-upload (save+upload), false = post-upload edit
+
+// ========== Status Check ==========
+async function checkStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    if (data.status === 'ok') {
+      dot.classList.remove('offline');
+      const parts = [];
+      if (data.deepseek_configured) parts.push('DeepSeek');
+      if (data.qwen_configured) parts.push('通义千问');
+      text.textContent = parts.length ? parts.join(' + ') + ' 已连接' : 'API 未配置';
+    } else {
+      dot.classList.add('offline');
+      text.textContent = '服务异常';
+    }
+  } catch(e) {
+    document.getElementById('statusDot').classList.add('offline');
+    document.getElementById('statusText').textContent = '无法连接';
+  }
+}
+
+// ========== File Upload ==========
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.add('dragover');
+}
+function handleDragLeave(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('dragover');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('dragover');
+  const files = e.dataTransfer.files;
+  if (files.length === 0) return;
+  if (files.length === 1) {
+    uploadFile(files[0]);
+  } else {
+    uploadFilesBatch(files);
+  }
+}
+function handleFileSelect(e) {
+  const files = e.target.files;
+  if (files.length === 0) return;
+  if (files.length === 1) {
+    uploadFile(files[0]);
+  } else {
+    uploadFilesBatch(files);
+  }
+  e.target.value = '';
+}
+
+async function uploadFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const allowed = ['mp4', 'mov', 'avi', 'mkv'];
+  if (!allowed.includes(ext)) {
+    alert('不支持 ' + ext.toUpperCase() + ' 格式');
+    return;
+  }
+
+  // 先弹出投放数据录入弹窗（选填），录完后再上传
+  pendingUploadFile = file;
+  isPreUploadMode = true;
+  clearAdDataForm();
+  currentVideoIdForAdData = null;
+  document.getElementById('adDataSkipBtn').textContent = '跳过，直接上传';
+  document.getElementById('adDataSaveBtn').textContent = '保存数据并上传';
+  document.getElementById('adDataModal').classList.add('active');
+}
+
+// ========== Batch Upload ==========
+async function uploadFilesBatch(files) {
+  const allowed = ['mp4', 'mov', 'avi', 'mkv'];
+  const formData = new FormData();
+  const validFiles = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const ext = files[i].name.split('.').pop().toLowerCase();
+    if (!allowed.includes(ext)) {
+      alert(files[i].name + ' 格式不支持，已跳过');
+      continue;
+    }
+    formData.append('files', files[i]);
+    validFiles.push({ name: files[i].name, size: files[i].size });
+  }
+
+  if (validFiles.length === 0) return;
+
+  // Show batch panel
+  const panel = document.getElementById('batchPanel');
+  const list = document.getElementById('batchList');
+  const uploadZone = document.getElementById('uploadZone');
+
+  panel.classList.add('active');
+  uploadZone.style.display = 'none';
+  document.getElementById('batchInfo').textContent = '共 ' + validFiles.length + ' 个视频，上传中...';
+  document.getElementById('batchBar').style.width = '0%';
+  document.getElementById('batchPercent').textContent = '0%';
+
+  list.innerHTML = validFiles.map((f, i) => `
+    <div class="batch-item" id="bitem-${i}">
+      <div class="batch-item-header">
+        <div class="batch-item-name">${f.name}</div>
+        <div class="batch-item-status" id="bstatus-${i}">上传中...</div>
+      </div>
+      <div class="batch-item-bar-track">
+        <div class="batch-item-bar-fill" id="bbar-${i}"></div>
+      </div>
+    </div>
+  `).join('');
+
+  try {
+    const res = await fetch('/api/upload/batch', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (data.error) {
+      alert('上传失败: ' + data.error);
+      panel.classList.remove('active');
+      uploadZone.style.display = '';
+      return;
+    }
+
+    if (data.errors.length > 0) {
+      alert('部分文件上传失败:\n' + data.errors.join('\n'));
+    }
+
+    document.getElementById('batchInfo').textContent =
+      '共 ' + data.video_ids.length + ' 个视频，处理中...';
+
+    // Track completion
+    let completed = 0;
+    const total = data.video_ids.length;
+
+    // Listen to each video's progress
+    data.video_ids.forEach((item, index) => {
+      listenBatchProgress(item.video_id, index, total, () => {
+        completed++;
+        const pct = Math.round((completed / total) * 100);
+        document.getElementById('batchBar').style.width = pct + '%';
+        document.getElementById('batchPercent').textContent = pct + '%';
+        if (completed >= total) {
+          setTimeout(() => {
+            panel.classList.remove('active');
+            uploadZone.style.display = '';
+            loadHistory();
+          }, 2000);
+        }
+      });
+    });
+
+  } catch(e) {
+    alert('上传失败: ' + e.message);
+    panel.classList.remove('active');
+    uploadZone.style.display = '';
+  }
+}
+
+// ========== Batch Progress ==========
+async function listenBatchProgress(videoId, index, total, onComplete) {
+  try {
+    const resp = await fetch('/api/progress/' + videoId);
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          const step = data.step;
+          if (step === 'heartbeat') continue;
+
+          let percent = 0;
+          if (step === 'info') percent = 5;
+          else if (step === 'frames') percent = 10 + (data.current / (data.total||1)) * 25;
+          else if (step === 'audio') percent = 40;
+          else if (step === 'asr') percent = 40 + (data.current / (data.total||1)) * 15;
+          else if (step === 'vl') percent = 55 + (data.current / (data.total||1)) * 20;
+          else if (step === 'analysis') percent = 75 + (data.current / (data.total||1)) * 20;
+          else if (step === 'done') percent = 100;
+
+          const bar = document.getElementById('bbar-' + index);
+          const status = document.getElementById('bstatus-' + index);
+          const item = document.getElementById('bitem-' + index);
+          if (!bar) continue;
+
+          bar.style.width = percent + '%';
+
+          if (step === 'done') {
+            status.textContent = '完成';
+            status.className = 'batch-item-status done-text';
+            item.classList.add('done');
+            onComplete();
+          } else if (step === 'error') {
+            status.textContent = '出错';
+            status.className = 'batch-item-status error-text';
+            item.classList.add('error');
+            onComplete();
+          } else {
+            status.textContent = (data.message || step).substring(0, 20);
+          }
+        } catch(e) {}
+      }
+    }
+  } catch(e) {
+    console.error('Batch progress error:', e);
+    onComplete();
+  }
+}
+
+// ========== Single Progress ==========
+function resetSteps() {
+  ['info', 'frames', 'audio', 'asr', 'vl', 'analysis', 'done'].forEach(s => {
+    const el = document.getElementById('step-' + s);
+    el.className = 'step-item';
+    document.getElementById('step-' + s + '-detail').textContent = '等待中...';
+  });
+  document.getElementById('progressBar').style.width = '0%';
+  document.getElementById('progressPercent').textContent = '0%';
+}
+
+function setStepStatus(step, status, detail) {
+  const el = document.getElementById('step-' + step);
+  if (!el) return;
+  el.className = 'step-item ' + status;
+  if (detail) {
+    document.getElementById('step-' + step + '-detail').textContent = detail;
+  }
+}
+
+function setProgress(percent) {
+  document.getElementById('progressBar').style.width = percent + '%';
+  document.getElementById('progressPercent').textContent = Math.round(percent) + '%';
+}
+
+async function listenProgress(videoId) {
+  try {
+    const resp = await fetch('/api/progress/' + videoId);
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          const step = data.step;
+
+          if (step === 'heartbeat') continue;
+
+          if (step === 'info') {
+            setStepStatus('info', data.current >= data.total ? 'done' : 'active', data.message);
+            setProgress(data.total > 0 ? (data.current / data.total) * 10 : 5);
+          } else if (step === 'frames') {
+            setStepStatus('info', 'done', '视频信息读取完成');
+            if (data.total > 0) {
+              const p = 10 + (data.current / data.total) * 25;
+              setProgress(p);
+            }
+            if (data.current >= data.total) {
+              setStepStatus('frames', 'done', data.message);
+            } else {
+              setStepStatus('frames', 'active', data.message);
+            }
+          } else if (step === 'audio') {
+            setStepStatus('frames', 'done', '关键帧提取完成');
+            setStepStatus('audio', data.current >= data.total ? 'done' : 'active', data.message);
+            setProgress(data.current >= data.total ? 40 : 37);
+          } else if (step === 'asr') {
+            setStepStatus('audio', 'done', '音频分离完成');
+            if (data.total > 0) {
+              const p = 40 + (data.current / data.total) * 15;
+              setProgress(p);
+            }
+            if (data.current >= data.total) {
+              setStepStatus('asr', 'done', data.message);
+            } else {
+              setStepStatus('asr', 'active', data.message);
+            }
+          } else if (step === 'vl') {
+            setStepStatus('asr', 'done', '语音识别完成');
+            if (data.total > 0) {
+              const p = 55 + (data.current / data.total) * 20;
+              setProgress(p);
+            }
+            if (data.current >= data.total) {
+              setStepStatus('vl', 'done', data.message);
+            } else {
+              setStepStatus('vl', 'active', data.message);
+            }
+          } else if (step === 'analysis') {
+            setStepStatus('vl', 'done', '画面分析完成');
+            if (data.total > 0) {
+              const p = 75 + (data.current / data.total) * 20;
+              setProgress(p);
+            }
+            if (data.current >= data.total) {
+              setStepStatus('analysis', 'done', data.message);
+            } else {
+              setStepStatus('analysis', 'active', data.message);
+            }
+          } else if (step === 'done') {
+            setStepStatus('analysis', 'done', '综合分析完成');
+            setStepStatus('done', 'done', data.message);
+            setProgress(100);
+            setTimeout(() => {
+              document.getElementById('progressPanel').classList.remove('active');
+              document.getElementById('uploadZone').style.display = '';
+              loadHistory();
+            }, 2000);
+          } else if (step === 'error') {
+            setStepStatus('info', 'error', '处理出错');
+            setProgress(0);
+            document.getElementById('step-info-detail').textContent = data.message;
+          }
+        } catch(e) {}
+      }
+    }
+  } catch(e) {
+    console.error('Progress stream error:', e);
+  }
+}
+
+// ========== History ==========
+let historyCache = [];
+let historyFilter = 'all';
+
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/history');
+    const data = await res.json();
+    historyCache = data.history || [];
+    updateSummary(historyCache);
+    renderHistory();
+  } catch(e) { console.error('加载历史失败', e); }
+}
+
+function setHistoryFilter(filter) {
+  historyFilter = filter;
+  document.querySelectorAll('.history-filter').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === filter);
+  });
+  renderHistory();
+}
+
+function updateSummary(items) {
+  const total = items.length;
+  const analyzed = items.filter(x => x.status === 'analyzed').length;
+  const scored = items.map(x => x.scoring ? Number(x.scoring.overall || 0) : 0).filter(Boolean);
+  const avg = scored.length ? (scored.reduce((a, b) => a + b, 0) / scored.length).toFixed(1) : '-';
+  const variants = items.filter(x => x.script_variants && Object.keys(x.script_variants).length).length;
+  document.getElementById('sumTotal').textContent = total;
+  document.getElementById('sumAnalyzed').textContent = analyzed;
+  document.getElementById('sumAvgScore').textContent = avg === '-' ? '-' : avg + '/10';
+  document.getElementById('sumVariants').textContent = variants;
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  const keyword = (document.getElementById('historySearch')?.value || '').trim().toLowerCase();
+  let items = historyCache.slice();
+
+  if (historyFilter === 'analyzed') items = items.filter(item => item.status === 'analyzed');
+  if (historyFilter === 'error') items = items.filter(item => item.status === 'error');
+  if (historyFilter === 'variants') items = items.filter(item => item.script_variants && Object.keys(item.script_variants).length);
+
+  if (keyword) {
+    items = items.filter(item => {
+      const tags = item.tags || {};
+      const text = [
+        item.video_name || '',
+        tags.category || '',
+        tags.style || '',
+        ...(tags.tags || []),
+        item.status || ''
+      ].join(' ').toLowerCase();
+      return text.includes(keyword);
+    });
+  }
+
+  if (items.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="icon">&#128194;</div><div>还没有分析记录</div></div>';
+      return;
+  }
+
+  list.innerHTML = items.map(item => {
+      const info = item.video_info || {};
+      const score = item.scoring ? item.scoring.overall || 0 : 0;
+      const cls = score >= 8 ? 'score-excellent' : score >= 6 ? 'score-good' : 'score-fair';
+      const statusMap = { analyzed: '已分析', extracted: '已提取', asr_done: 'ASR完成', vl_done: 'VL完成', frames_extracted: '提取中', audio_extracted: '音频已分离', processing: '处理中', error: '出错' };
+      const statusText = statusMap[item.status] || item.status || '未知';
+      const statusCls = item.status === 'error' ? 'score-fair' : item.status === 'analyzed' ? 'score-excellent' : 'score-good';
+      const isAnalyzed = item.status === 'analyzed';
+
+      // Tags HTML
+      let tagsHtml = '';
+      const tags = item.tags || {};
+      if (tags.category || tags.style || (tags.tags && tags.tags.length)) {
+        const parts = [];
+        if (tags.category) parts.push('<span class="tag tag-category">' + escHtml(tags.category) + '</span>');
+        if (tags.style) parts.push('<span class="tag tag-style">' + escHtml(tags.style) + '</span>');
+        if (tags.tags && tags.tags.length) {
+          tags.tags.slice(0, 4).forEach(t => {
+            parts.push('<span class="tag tag-keyword">' + escHtml(t) + '</span>');
+          });
+        }
+        tagsHtml = '<div class="history-tags-row">' + parts.join('') + '</div>';
+      }
+
+      // Ad data HTML
+      let adHtml = '';
+      const ad = item.ad_data || {};
+      const adParts = [];
+      if (ad.ctr) adParts.push('<span class="ad-tag ad-tag-ctr">CTR ' + ad.ctr + '%</span>');
+      if (ad.cvr) adParts.push('<span class="ad-tag ad-tag-cvr">CVR ' + ad.cvr + '%</span>');
+      if (ad.completion_rate) adParts.push('<span class="ad-tag ad-tag-comp">完播 ' + ad.completion_rate + '%</span>');
+      if (ad.cost) adParts.push('<span class="ad-tag" style="background:rgba(241,196,15,0.15);color:#F1C40F;">' + ad.cost + '元</span>');
+      if (ad.cpa) adParts.push('<span class="ad-tag" style="background:rgba(231,76,60,0.15);color:#E74C3C;">CPA ' + ad.cpa + '元</span>');
+      if (adParts.length) {
+        adHtml = '<div class="history-tags-row">' + adParts.join('') + '</div>';
+      }
+
+      return `
+        <div class="history-item ${isAnalyzed ? 'analyzed' : ''}" onclick="openReportPreview('${item.video_id}')">
+          <div class="history-info">
+            <div class="history-thumb"><img src="/api/cover/${item.video_id}" alt="" onerror="this.style.display='none';this.parentNode.innerHTML='&#127909;'"></div>
+            <div>
+              <div class="history-name">${escHtml(item.video_name || '未知视频')}</div>
+              <div class="history-meta">${info.width || '?'}x${info.height || '?'} | ${info.duration || '?'}s | ${item.frames ? item.frames.frames_count + '帧' : '-'}</div>
+              <div class="history-meta">${item.analyzed_at || item.created_at || ''}</div>
+              ${tagsHtml}${adHtml}
+            </div>
+          </div>
+          <div class="history-right">
+            <div class="history-score">
+              <div class="num ${score > 0 ? cls : statusCls}">${score > 0 ? score + '/10' : statusText}</div>
+              <div class="label">${score > 0 ? '综合评分' : '状态'}</div>
+            </div>
+            <button class="action-btn" onclick="event.stopPropagation();showBreakdownModal('${item.video_id}')" title="简洁报告">&#128220;</button>
+            <button class="action-btn" onclick="event.stopPropagation();showScriptVariantsModal('${item.video_id}')" title="脚本裂变">&#128161;</button>
+            <button class="action-btn" onclick="event.stopPropagation();showAdDataModal('${item.video_id}')" title="投放数据">&#128200;</button>
+            <button class="action-btn" onclick="event.stopPropagation();showTagsModal('${item.video_id}')" title="编辑标签">&#127991;</button>
+            <button class="action-btn" onclick="event.stopPropagation();deleteVideo('${item.video_id}','${escHtml(item.video_name || '此视频')}')" title="删除">&#128465;</button>
+          </div>
+        </div>`;
+  }).join('');
+}
+
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function escAttr(str) {
+  return escHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ========== Delete Video ==========
+async function deleteVideo(videoId, videoName) {
+  if (!confirm('确定要删除「' + videoName + '」吗？\n\n此操作不可恢复！')) return;
+
+  try {
+    const res = await fetch('/api/video/' + videoId, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.error) {
+      alert('删除失败: ' + data.error);
+      return;
+    }
+    loadHistory();
+  } catch(e) {
+    alert('删除失败: ' + e.message);
+  }
+}
+
+// ========== Ad Data ==========
+function autoCalcRates() {
+  const imp = parseFloat(document.getElementById('inputImpressions').value);
+  const clicks = parseFloat(document.getElementById('inputClicks').value);
+  const conv = parseFloat(document.getElementById('inputConversions').value);
+  const cost = parseFloat(document.getElementById('inputCost').value);
+
+  // Auto-calc CTR: clicks / impressions * 100
+  const ctrInput = document.getElementById('inputCTR');
+  if (imp > 0 && clicks > 0) {
+    ctrInput.value = (clicks / imp * 100).toFixed(2);
+    ctrInput.style.color = '#7C6AFF';
+  } else {
+    ctrInput.style.color = '#E8E6E1';
+  }
+
+  // Auto-calc CVR: conversions / clicks * 100
+  const cvrInput = document.getElementById('inputCVR');
+  if (clicks > 0 && conv > 0) {
+    cvrInput.value = (conv / clicks * 100).toFixed(2);
+    cvrInput.style.color = '#7C6AFF';
+  } else {
+    cvrInput.style.color = '#E8E6E1';
+  }
+
+  // Auto-calc CPA: cost / conversions
+  const cpaInput = document.getElementById('inputCPA');
+  if (cost > 0 && conv > 0) {
+    cpaInput.value = (cost / conv).toFixed(2);
+    cpaInput.style.color = '#7C6AFF';
+  } else {
+    cpaInput.style.color = '#E8E6E1';
+  }
+}
+
+function closeAdDataModal() {
+  document.getElementById('adDataModal').classList.remove('active');
+  currentVideoIdForAdData = null;
+  pendingUploadFile = null;
+  isPreUploadMode = false;
+}
+
+function clearAdDataForm() {
+  ['inputCTR','inputCVR','inputCPA','inputCompletion','inputCost','inputConversions','inputImpressions','inputClicks'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; el.style.color = '#E8E6E1'; }
+  });
+}
+
+function collectAdData() {
+  const adData = {};
+  const fields = {
+    cost: 'inputCost', impressions: 'inputImpressions', clicks: 'inputClicks',
+    ctr: 'inputCTR', conversions: 'inputConversions',
+    cpa: 'inputCPA', cvr: 'inputCVR', completion_rate: 'inputCompletion'
+  };
+  for (const [key, id] of Object.entries(fields)) {
+    const val = document.getElementById(id).value.trim();
+    if (val) adData[key] = parseFloat(val);
+  }
+  return adData;
+}
+
+function doUploadWithAdData(adData) {
+  if (!pendingUploadFile) return;
+
+  const file = pendingUploadFile;
+  pendingUploadFile = null;
+  const panel = document.getElementById('progressPanel');
+  const uploadZone = document.getElementById('uploadZone');
+  panel.classList.add('active');
+  document.getElementById('progressFilename').textContent = file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' MB)';
+  resetSteps();
+  uploadZone.style.display = 'none';
+
+  const formData = new FormData();
+  formData.append('file', file);
+  if (Object.keys(adData).length > 0) {
+    formData.append('ad_data', JSON.stringify(adData));
+  }
+
+  fetch('/api/upload', { method: 'POST', body: formData })
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) {
+        alert('上传失败: ' + data.error);
+        panel.classList.remove('active');
+        uploadZone.style.display = '';
+        return;
+      }
+      listenProgress(data.video_id);
+    })
+    .catch(e => {
+      alert('上传失败: ' + e.message);
+      panel.classList.remove('active');
+      uploadZone.style.display = '';
+    });
+}
+
+function skipAdData() {
+  if (isPreUploadMode) {
+    // Pre-upload: skip ad data, upload directly
+    document.getElementById('adDataModal').classList.remove('active');
+    doUploadWithAdData({});
+  } else {
+    // Post-upload: just close
+    closeAdDataModal();
+  }
+}
+
+async function saveAdData() {
+  const adData = collectAdData();
+
+  if (isPreUploadMode) {
+    // Pre-upload mode: save ad data + upload file
+    document.getElementById('adDataModal').classList.remove('active');
+    doUploadWithAdData(adData);
+  } else if (currentVideoIdForAdData) {
+    // Post-upload mode: save ad data to existing video
+    try {
+      const res = await fetch('/api/video/' + currentVideoIdForAdData + '/ad-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(adData)
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
+      closeAdDataModal();
+      clearAdDataForm();
+      loadHistory();
+    } catch(e) {
+      alert('保存失败: ' + e.message);
+    }
+  }
+}
+
+function showAdDataModal(videoId) {
+  currentVideoIdForAdData = videoId;
+  isPreUploadMode = false;
+  clearAdDataForm();
+  document.getElementById('adDataSkipBtn').textContent = '跳过';
+  document.getElementById('adDataSaveBtn').textContent = '保存';
+
+  // Load existing ad data
+  fetch('/api/result/' + videoId)
+    .then(res => res.json())
+    .then(data => {
+      const ad = data.ad_data || {};
+      if (ad.cost) document.getElementById('inputCost').value = ad.cost;
+      if (ad.impressions) document.getElementById('inputImpressions').value = ad.impressions;
+      if (ad.clicks) document.getElementById('inputClicks').value = ad.clicks;
+      if (ad.ctr) document.getElementById('inputCTR').value = ad.ctr;
+      if (ad.conversions) document.getElementById('inputConversions').value = ad.conversions;
+      if (ad.cpa) document.getElementById('inputCPA').value = ad.cpa;
+      if (ad.cvr) document.getElementById('inputCVR').value = ad.cvr;
+      if (ad.completion_rate) document.getElementById('inputCompletion').value = ad.completion_rate;
+      autoCalcRates();
+    })
+    .catch(e => console.error('Load ad data error:', e));
+
+  document.getElementById('adDataModal').classList.add('active');
+}
+
+// ========== Tags ==========
+function showTagsModal(videoId) {
+  currentVideoIdForTags = videoId;
+  clearTagsForm();
+
+  fetch('/api/result/' + videoId)
+    .then(res => res.json())
+    .then(data => {
+      if (data.tags) {
+        document.getElementById('inputCategory').value = data.tags.category || '';
+        document.getElementById('inputStyle').value = data.tags.style || '';
+        document.getElementById('inputTags').value = (data.tags.tags || []).join(', ');
+      }
+      document.getElementById('tagsModal').classList.add('active');
+    })
+    .catch(() => {
+      document.getElementById('tagsModal').classList.add('active');
+    });
+}
+
+function closeTagsModal() {
+  document.getElementById('tagsModal').classList.remove('active');
+  currentVideoIdForTags = null;
+}
+
+function clearTagsForm() {
+  document.getElementById('inputCategory').value = '';
+  document.getElementById('inputStyle').value = '';
+  document.getElementById('inputTags').value = '';
+}
+
+async function saveTags() {
+  if (!currentVideoIdForTags) return;
+
+  const tagsInput = document.getElementById('inputTags').value.trim();
+  const tags = tagsInput ? tagsInput.split(/[,，]+/).map(t => t.trim()).filter(t => t) : [];
+
+  const tagsData = {
+    category: document.getElementById('inputCategory').value.trim(),
+    style: document.getElementById('inputStyle').value.trim(),
+    tags: tags
+  };
+
+  try {
+    const res = await fetch('/api/video/' + currentVideoIdForTags + '/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tagsData)
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    closeTagsModal();
+    loadHistory();
+  } catch(e) {
+    alert('保存失败: ' + e.message);
+  }
+}
+
+// ========== Breakdown ==========
+let currentVideoIdForBreakdown = null;
+
+function showBreakdownModal(videoId) {
+  currentVideoIdForBreakdown = videoId;
+  document.getElementById('breakdownModal').classList.add('active');
+  document.getElementById('breakdownRegenBtn').style.display = 'none';
+  loadBreakdown(videoId);
+}
+
+function closeBreakdownModal() {
+  document.getElementById('breakdownModal').classList.remove('active');
+  currentVideoIdForBreakdown = null;
+}
+
+async function loadBreakdown(videoId) {
+  const content = document.getElementById('breakdownContent');
+  content.innerHTML = `
+    <div style="text-align:center;padding:40px;color:#6B6A66;">
+      <div class="spinner" style="margin:0 auto 16px;"></div>
+      <div>正在生成简洁内容报告...</div>
+      <div style="font-size:12px;margin-top:8px;">首次生成需要调用 DeepSeek API，约 10-30 秒</div>
+    </div>`;
+
+  try {
+    // 先尝试 GET 已有报告
+    let res = await fetch('/api/video/' + videoId + '/breakdown');
+    let data = await res.json();
+
+    // 如果没有，POST 生成
+    if (res.status === 404) {
+      res = await fetch('/api/video/' + videoId + '/breakdown', { method: 'POST' });
+      data = await res.json();
+    }
+
+    if (data.error) {
+      content.innerHTML = `<div class="breakdown-empty">生成失败: ${escHtml(data.error)}</div>`;
+      document.getElementById('breakdownRegenBtn').style.display = 'inline-block';
+      return;
+    }
+
+    renderBreakdown(data.breakdown || {});
+    document.getElementById('breakdownRegenBtn').style.display = 'inline-block';
+  } catch(e) {
+    content.innerHTML = `<div class="breakdown-empty">加载失败: ${escHtml(e.message)}</div>`;
+    document.getElementById('breakdownRegenBtn').style.display = 'inline-block';
+  }
+}
+
+async function regenerateBreakdown() {
+  if (!currentVideoIdForBreakdown) return;
+  // 删除缓存，强制重新生成
+  const content = document.getElementById('breakdownContent');
+  content.innerHTML = `
+    <div style="text-align:center;padding:40px;color:#6B6A66;">
+      <div class="spinner" style="margin:0 auto 16px;"></div>
+      <div>正在重新生成...</div>
+    </div>`;
+  document.getElementById('breakdownRegenBtn').style.display = 'none';
+
+  try {
+    const res = await fetch('/api/video/' + currentVideoIdForBreakdown + '/breakdown', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) {
+      content.innerHTML = `<div class="breakdown-empty">生成失败: ${escHtml(data.error)}</div>`;
+      document.getElementById('breakdownRegenBtn').style.display = 'inline-block';
+      return;
+    }
+    renderBreakdown(data.breakdown || {});
+    document.getElementById('breakdownRegenBtn').style.display = 'inline-block';
+  } catch(e) {
+    content.innerHTML = `<div class="breakdown-empty">生成失败: ${escHtml(e.message)}</div>`;
+    document.getElementById('breakdownRegenBtn').style.display = 'inline-block';
+  }
+}
+
+function renderBreakdown(breakdown) {
+  const content = document.getElementById('breakdownContent');
+  if (!breakdown || Object.keys(breakdown).length === 0) {
+    content.innerHTML = '<div class="breakdown-empty">暂无报告数据</div>';
+    return;
+  }
+
+  const data = breakdown.data || {};
+  const script = breakdown.script_content || {};
+  const risks = breakdown.risks || [];
+  const improvements = breakdown.improvements || [];
+
+  // 数据列内容
+  let dataCell = '';
+  const scoreItems = [
+    ['综合评分', data.overall_score],
+    ['钩子强度', data.hook_score],
+    ['画面质量', data.visual_score],
+    ['文案质量', data.copy_score],
+    ['音频质量', data.audio_score],
+    ['节奏感', data.rhythm_score],
+    ['转化引导', data.conversion_score],
+  ];
+  scoreItems.forEach(([label, val]) => {
+    if (val) dataCell += `<div style="margin-bottom:4px;"><b>${label}:</b> ${escHtml(String(val))}</div>`;
+  });
+  if (data.ad_metrics && data.ad_metrics !== '无投放数据' && data.ad_metrics !== '-') {
+    dataCell += `<div style="margin-top:8px;border-top:1px solid #2A2A35;padding-top:8px;"><b>投放数据:</b></div>`;
+    data.ad_metrics.split('\n').forEach(line => {
+      if (line.trim()) dataCell += `<div style="margin-bottom:2px;font-size:12px;">${escHtml(line.trim())}</div>`;
+    });
+  }
+  if (data.traffic_potential) {
+    dataCell += `<div style="margin-top:8px;border-top:1px solid #2A2A35;padding-top:8px;"><b>跑量潜力:</b></div>`;
+    dataCell += `<div style="font-size:12px;">${escHtml(String(data.traffic_potential))}</div>`;
+  }
+  if (!dataCell) dataCell = '-';
+
+  // 脚本内容列
+  let scriptCell = '';
+  if (script.hook) scriptCell += `<div style="margin-bottom:8px;"><b style="color:#8B5CF6;">钩子:</b><br/>${escHtml(script.hook)}</div>`;
+  if (script.body) scriptCell += `<div style="margin-bottom:8px;"><b style="color:#8B5CF6;">主体:</b><br/>${escHtml(script.body)}</div>`;
+  if (script.ending) scriptCell += `<div style="margin-bottom:8px;"><b style="color:#8B5CF6;">CTA:</b><br/>${escHtml(script.ending)}</div>`;
+  if (script.full_script) scriptCell += `<div style="margin-bottom:8px;"><b style="color:#8B5CF6;">完整脚本:</b><br/>${escHtml(script.full_script)}</div>`;
+  if (!scriptCell) scriptCell = '-';
+
+  // 潜在风险列
+  let risksCell = '';
+  if (risks.length > 0) {
+    risks.forEach(r => {
+      const sevCls = r.severity === '高' ? 'high' : r.severity === '中' ? 'medium' : 'low';
+      risksCell += `<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #2A2A35;">`;
+      risksCell += `<div style="margin-bottom:4px;">${escHtml(r.item || '-')}</div>`;
+      risksCell += `<span class="breakdown-tag ${sevCls}">${escHtml(r.severity || '-')}</span>`;
+      if (r.reason) risksCell += `<div style="margin-top:4px;font-size:12px;color:#9B9A96;">${escHtml(r.reason)}</div>`;
+      risksCell += `</div>`;
+    });
+  } else {
+    risksCell = '-';
+  }
+
+  // 改进建议列
+  let impCell = '';
+  if (improvements.length > 0) {
+    improvements.forEach(i => {
+      const priCls = i.priority === '高' ? 'high' : i.priority === '中' ? 'medium' : 'low';
+      impCell += `<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #2A2A35;">`;
+      impCell += `<div style="margin-bottom:4px;">${escHtml(i.item || '-')}</div>`;
+      impCell += `<span class="breakdown-tag ${priCls}">${escHtml(i.priority || '-')}</span>`;
+      if (i.expected_impact) impCell += `<div style="margin-top:4px;font-size:12px;color:#9B9A96;">${escHtml(i.expected_impact)}</div>`;
+      impCell += `</div>`;
+    });
+  } else {
+    impCell = '-';
+  }
+
+  // 4列表格
+  const html = `
+    <table class="breakdown-table" style="width:100%;table-layout:fixed;">
+      <thead>
+        <tr>
+          <th style="width:22%;background:#1A1A22;">&#128202; 数据</th>
+          <th style="width:28%;background:#1A1A22;">&#128221; 脚本内容</th>
+          <th style="width:25%;background:#1A1A22;">&#9888; 潜在风险</th>
+          <th style="width:25%;background:#1A1A22;">&#128161; 改进建议</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="vertical-align:top;">
+          <td style="padding:12px;font-size:13px;">${dataCell}</td>
+          <td style="padding:12px;font-size:13px;">${scriptCell}</td>
+          <td style="padding:12px;font-size:13px;">${risksCell}</td>
+          <td style="padding:12px;font-size:13px;">${impCell}</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+
+  content.innerHTML = html;
+}
+
+// ========== Script Variants ==========
+let currentVideoIdForScriptVariants = null;
+
+function showScriptVariantsModal(videoId) {
+  currentVideoIdForScriptVariants = videoId;
+  document.getElementById('scriptVariantsModal').classList.add('active');
+  document.getElementById('scriptVariantsRegenBtn').style.display = 'none';
+  loadReviewRules();
+  loadScriptVariants(videoId);
+}
+
+function closeScriptVariantsModal() {
+  document.getElementById('scriptVariantsModal').classList.remove('active');
+  currentVideoIdForScriptVariants = null;
+}
+
+async function loadScriptVariants(videoId) {
+  const content = document.getElementById('scriptVariantsContent');
+  content.innerHTML = `
+    <div style="text-align:center;padding:40px;color:#6B6A66;">
+      <div class="spinner" style="margin:0 auto 16px;"></div>
+      <div>正在生成脚本裂变方案...</div>
+    </div>`;
+
+  try {
+    let res = await fetch('/api/video/' + videoId + '/script-variants');
+    let data = await res.json();
+    if (res.status === 404) {
+      res = await fetch('/api/video/' + videoId + '/script-variants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_rule_id: document.getElementById('scriptReviewRuleSelect')?.value || '' })
+      });
+      data = await res.json();
+    }
+    if (data.error) {
+      content.innerHTML = `<div class="breakdown-empty">生成失败: ${escHtml(data.error)}</div>`;
+      document.getElementById('scriptVariantsRegenBtn').style.display = 'inline-block';
+      return;
+    }
+    renderScriptVariants(data.script_variants || {});
+    document.getElementById('scriptVariantsRegenBtn').style.display = 'inline-block';
+  } catch(e) {
+    content.innerHTML = `<div class="breakdown-empty">加载失败: ${escHtml(e.message)}</div>`;
+    document.getElementById('scriptVariantsRegenBtn').style.display = 'inline-block';
+  }
+}
+
+function normalizeList(value) {
+  if (Array.isArray(value)) return value.map(v => String(v || '').trim()).filter(Boolean);
+  if (typeof value === 'string') return value.split('\n').map(v => v.trim()).filter(Boolean);
+  return [];
+}
+
+function renderScriptVariants(data) {
+  const content = document.getElementById('scriptVariantsContent');
+  if (!data || Object.keys(data).length === 0) {
+    content.innerHTML = '<div class="breakdown-empty">暂无脚本裂变数据</div>';
+    return;
+  }
+
+  const viral = data.viral_attribution || {};
+  const original = data.original_structure || {};
+  const bank = data.variable_bank || {};
+  const directions = data.directions || [];
+  const varFields = [
+    ['audiences', '人群'],
+    ['scenes', '场景'],
+    ['pain_points', '痛点'],
+    ['openings', '开头'],
+    ['reversals', '反转']
+  ];
+  const viralReasons = normalizeList(viral.why_it_may_work).map(x => `<li>${escHtml(x)}</li>`).join('');
+  const risks = normalizeList(viral.risks).map(x => `<li>${escHtml(x)}</li>`).join('');
+  const varsHtml = varFields.map(([key, label]) => {
+    const value = normalizeList(bank[key]).join('\n');
+    return `
+      <div class="variant-var">
+        <label>${label}</label>
+        <textarea id="variant_${key}" placeholder="每行一个${label}">${escHtml(value)}</textarea>
+      </div>`;
+  }).join('');
+  const directionsHtml = directions.length ? directions.map((item, idx) => {
+    const selected = item.selected_variables || {};
+    const script = item.complete_script || {};
+    const audit = item.audit_check || {};
+    const subtitles = normalizeList(script.on_screen_text).map(x => `<li>${escHtml(x)}</li>`).join('');
+    const shots = Array.isArray(script.shot_list) ? script.shot_list.map(s => `
+      <tr>
+        <td>${escHtml(s.time || '-')}</td>
+        <td>${escHtml(s.visual || '-')}</td>
+        <td>${escHtml(s.audio || '-')}</td>
+        <td>${escHtml(s.subtitle || '-')}</td>
+      </tr>`).join('') : '';
+    const sensitive = normalizeList(audit.matched_sensitive_words).map(x => `<span class="breakdown-tag medium">${escHtml(x)}</span>`).join('');
+    const replacements = Array.isArray(audit.replacement_suggestions) ? audit.replacement_suggestions.map(r => `
+      <li>${escHtml(r.original || '-')} → ${escHtml(r.replace_with || '-')}：${escHtml(r.reason || '')}</li>`).join('') : '';
+    const notes = normalizeList(audit.compliance_notes).map(x => `<li>${escHtml(x)}</li>`).join('');
+    return `
+      <div class="variant-direction">
+        <span class="variant-badge">${escHtml(item.variant_type || '裂变方向')} #${idx + 1}</span>
+        <h4>${escHtml(item.title || '未命名方向')}</h4>
+        <div class="variant-muted" style="margin-bottom:8px;">
+          人群：${escHtml(selected.audience || '-')} ｜ 场景：${escHtml(selected.scene || '-')} ｜ 痛点：${escHtml(selected.pain_point || '-')}
+        </div>
+        <div style="line-height:1.7;margin-bottom:8px;">${escHtml(item.script_outline || '')}</div>
+        <div class="variant-card" style="margin-top:10px;">
+          <div class="variant-title">完整视频文案 ${script.duration ? `<span class="variant-muted">(${escHtml(script.duration)})</span>` : ''}</div>
+          ${script.opening_hook ? `<div style="margin-bottom:8px;"><b>开头3秒：</b>${escHtml(script.opening_hook)}</div>` : ''}
+          ${script.voiceover ? `<div style="white-space:pre-wrap;line-height:1.75;margin-bottom:10px;">${escHtml(script.voiceover)}</div>` : ''}
+          ${subtitles ? `<div class="variant-muted">屏幕字幕：</div><ul class="pv-bullet-list">${subtitles}</ul>` : ''}
+          ${shots ? `<table class="breakdown-table" style="margin-top:10px;"><thead><tr><th>时间</th><th>画面</th><th>口播/音效</th><th>字幕</th></tr></thead><tbody>${shots}</tbody></table>` : ''}
+          ${script.cta ? `<div style="margin-top:10px;"><b>结尾CTA：</b>${escHtml(script.cta)}</div>` : ''}
+          ${script.production_notes ? `<div class="variant-muted" style="margin-top:8px;">制作建议：${escHtml(script.production_notes)}</div>` : ''}
+        </div>
+        <div class="variant-card" style="margin-top:10px;">
+          <div class="variant-title">审核自检 <span class="breakdown-tag ${audit.risk_level === '高' ? 'high' : audit.risk_level === '中' ? 'medium' : 'low'}">${escHtml(audit.risk_level || '未评估')}</span></div>
+          ${sensitive ? `<div style="margin-bottom:8px;">命中敏感词：${sensitive}</div>` : '<div class="variant-muted">未发现明确敏感词命中。</div>'}
+          ${replacements ? `<div class="variant-muted" style="margin-top:8px;">替代表达：</div><ul class="pv-bullet-list">${replacements}</ul>` : ''}
+          ${notes ? `<div class="variant-muted" style="margin-top:8px;">审核注意：</div><ul class="pv-bullet-list">${notes}</ul>` : ''}
+        </div>
+        ${item.risk_note ? `<div class="variant-muted">风险：${escHtml(item.risk_note)}</div>` : ''}
+      </div>`;
+  }).join('') : '<div class="breakdown-empty">暂无裂变方向</div>';
+
+  content.innerHTML = `
+    <div class="variant-layout">
+      <div class="variant-list">
+        <div class="variant-card">
+          <div class="variant-title">爆款归因</div>
+          <div style="line-height:1.7;">
+            <div><b>核心钩子：</b>${escHtml(viral.core_hook || '-')}</div>
+            <div><b>情绪触发：</b>${escHtml(viral.emotional_trigger || '-')}</div>
+            <div><b>人群洞察：</b>${escHtml(viral.audience_insight || '-')}</div>
+            <div><b>可复制公式：</b>${escHtml(viral.structure_formula || '-')}</div>
+          </div>
+          ${viralReasons ? `<div class="variant-title" style="margin-top:14px;">可能跑量原因</div><ul class="pv-bullet-list">${viralReasons}</ul>` : ''}
+          ${risks ? `<div class="variant-title" style="margin-top:14px;">风险提醒</div><ul class="pv-bullet-list">${risks}</ul>` : ''}
+        </div>
+        <div class="variant-card">
+          <div class="variant-title">原片结构</div>
+          <div class="variant-muted">
+            人群：${escHtml(original.audience || '-')}<br>
+            场景：${escHtml(original.scene || '-')}<br>
+            痛点：${escHtml(original.pain_point || '-')}<br>
+            开头：${escHtml(original.opening || '-')}<br>
+            反转：${escHtml(original.reversal || '-')}<br>
+            CTA：${escHtml(original.cta || '-')}
+          </div>
+        </div>
+        <div class="variant-card">
+          <div class="variant-title">裂变变量台</div>
+          <div class="variant-muted" style="margin-bottom:10px;">AI 已先推荐，你可以按自己的策划需求改写。每行一个变量。</div>
+          <div class="variant-vars">${varsHtml}</div>
+        </div>
+      </div>
+      <div class="variant-list">
+        <div class="variant-card">
+          <div class="variant-title">脚本裂变方向</div>
+          <div class="variant-list">${directionsHtml}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function collectScriptVariantVariables() {
+  const keys = ['audiences', 'scenes', 'pain_points', 'openings', 'reversals'];
+  const variables = {};
+  keys.forEach(key => {
+    const el = document.getElementById('variant_' + key);
+    variables[key] = el ? normalizeList(el.value) : [];
+  });
+  return variables;
+}
+
+async function regenerateScriptVariants() {
+  if (!currentVideoIdForScriptVariants) return;
+  const content = document.getElementById('scriptVariantsContent');
+  const variables = collectScriptVariantVariables();
+  content.innerHTML = `
+    <div style="text-align:center;padding:40px;color:#6B6A66;">
+      <div class="spinner" style="margin:0 auto 16px;"></div>
+      <div>正在按你的变量重新生成...</div>
+    </div>`;
+  document.getElementById('scriptVariantsRegenBtn').style.display = 'none';
+
+  try {
+    const res = await fetch('/api/video/' + currentVideoIdForScriptVariants + '/script-variants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        variables,
+        force: true,
+        review_rule_id: document.getElementById('scriptReviewRuleSelect')?.value || ''
+      })
+    });
+    const data = await res.json();
+    if (data.error) {
+      content.innerHTML = `<div class="breakdown-empty">生成失败: ${escHtml(data.error)}</div>`;
+      document.getElementById('scriptVariantsRegenBtn').style.display = 'inline-block';
+      return;
+    }
+    renderScriptVariants(data.script_variants || {});
+    document.getElementById('scriptVariantsRegenBtn').style.display = 'inline-block';
+  } catch(e) {
+    content.innerHTML = `<div class="breakdown-empty">生成失败: ${escHtml(e.message)}</div>`;
+    document.getElementById('scriptVariantsRegenBtn').style.display = 'inline-block';
+  }
+}
+
+// ========== Review Rules ==========
+async function loadReviewRules() {
+  try {
+    const res = await fetch('/api/review-rules');
+    const data = await res.json();
+    const select = document.getElementById('scriptReviewRuleSelect');
+    if (select) {
+      const selected = select.value;
+      select.innerHTML = '<option value="">不引用审核规范</option>' + (data.rules || []).map(rule =>
+        `<option value="${escAttr(rule.id)}">${escHtml(rule.name)}</option>`
+      ).join('');
+      select.value = selected;
+    }
+    renderReviewRulesList(data.rules || []);
+  } catch(e) {
+    const list = document.getElementById('reviewRulesList');
+    if (list) list.innerHTML = `<div class="breakdown-empty">加载失败: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function openReviewRulesModal() {
+  document.getElementById('reviewRulesModal').classList.add('active');
+  loadReviewRules();
+}
+
+function closeReviewRulesModal() {
+  document.getElementById('reviewRulesModal').classList.remove('active');
+}
+
+function renderReviewRulesList(rules) {
+  const list = document.getElementById('reviewRulesList');
+  if (!list) return;
+  if (!rules.length) {
+    list.innerHTML = '<div class="breakdown-empty">还没有审核规范</div>';
+    return;
+  }
+  list.innerHTML = rules.map(rule => `
+    <div class="history-item" style="cursor:default;margin-bottom:8px;">
+      <div>
+        <div class="history-name">${escHtml(rule.name)}</div>
+        <div class="history-meta">${Math.round((rule.size || 0) / 1024 * 10) / 10} KB ｜ ${escHtml(rule.updated_at || '')}</div>
+      </div>
+      <div class="history-right">
+        <button class="action-btn" onclick="previewReviewRule('${escAttr(rule.id)}')" title="查看">&#128065;</button>
+        <button class="action-btn" onclick="deleteReviewRule('${escAttr(rule.id)}')" title="删除">&#128465;</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function uploadReviewRule() {
+  const input = document.getElementById('reviewRuleFile');
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('name', document.getElementById('reviewRuleName').value || file.name);
+  try {
+    const res = await fetch('/api/review-rules', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    input.value = '';
+    document.getElementById('reviewRuleName').value = '';
+    await loadReviewRules();
+    if (data.rule && document.getElementById('scriptReviewRuleSelect')) {
+      document.getElementById('scriptReviewRuleSelect').value = data.rule.id;
+    }
+  } catch(e) {
+    alert('上传失败: ' + e.message);
+  }
+}
+
+async function previewReviewRule(ruleId) {
+  try {
+    const res = await fetch('/api/review-rules/' + encodeURIComponent(ruleId));
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    alert(data.content.slice(0, 1600));
+  } catch(e) {
+    alert('查看失败: ' + e.message);
+  }
+}
+
+async function deleteReviewRule(ruleId) {
+  if (!confirm('确定删除这份审核规范吗？')) return;
+  try {
+    const res = await fetch('/api/review-rules/' + encodeURIComponent(ruleId), { method: 'DELETE' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    loadReviewRules();
+  } catch(e) {
+    alert('删除失败: ' + e.message);
+  }
+}
+
+// ========== Export ==========
+async function exportReport(videoId, format, btnEl) {
+  if (btnEl) {
+    btnEl.classList.add('exporting');
+    btnEl.textContent = '生成中...';
+  }
+  try {
+    const res = await fetch('/api/export/' + format + '/' + videoId);
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || '导出失败');
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    const disposition = res.headers.get('Content-Disposition');
+    if (disposition) {
+      const match = disposition.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i);
+      if (match) a.download = decodeURIComponent(match[1].replace(/"/g, ''));
+    }
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('导出失败: ' + e.message);
+  } finally {
+    if (btnEl) {
+      btnEl.classList.remove('exporting');
+      btnEl.textContent = format === 'word' ? '\uD83D\uDCC4 Word' : '\uD83D\uDCD1 PDF';
+    }
+  }
+}
+
+// ========== Settings ==========
+function openSettings() { document.getElementById('settingsModal').classList.add('active'); }
+function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
+
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/config');
+    const data = await res.json();
+    if (data.deepseek_api_key) document.getElementById('inputDeepseekKey').value = data.deepseek_api_key;
+    if (data.qwen_api_key) document.getElementById('inputQwenKey').value = data.qwen_api_key;
+  } catch(e) {}
+}
+
+async function saveSettings() {
+  const deepseekKey = document.getElementById('inputDeepseekKey').value.trim();
+  const qwenKey = document.getElementById('inputQwenKey').value.trim();
+
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deepseek_api_key: deepseekKey, qwen_api_key: qwenKey })
+    });
+    const data = await res.json();
+    alert(data.message);
+    closeSettings();
+    checkStatus();
+  } catch(e) {
+    alert('保存失败: ' + e.message);
+  }
+}
+
+// ========== Report Preview ==========
+let currentPreviewVideoId = null;
+let pvBarChart = null;
+let pvRadarChart = null;
+
+const DIMENSION_LABELS = {
+  hook_strength: '钩子强度',
+  visual_quality: '画面质量',
+  copy_quality: '文案质量',
+  audio_quality: '音频质量',
+  rhythm: '节奏感',
+  conversion_guidance: '转化引导',
+  overall: '综合评分'
+};
+
+function openReportPreview(videoId) {
+  currentPreviewVideoId = videoId;
+  const overlay = document.getElementById('previewOverlay');
+  const panel = document.getElementById('previewPanel');
+  const body = document.getElementById('previewBody');
+  const title = document.getElementById('previewTitle');
+
+  title.textContent = '加载中...';
+  body.innerHTML = '<div class="preview-loading"><div class="spinner"></div><div>正在加载分析报告...</div></div>';
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => panel.classList.add('active'));
+
+  fetch('/api/result/' + videoId)
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) { body.innerHTML = '<div class="preview-loading"><div>' + data.error + '</div></div>'; return; }
+      title.textContent = data.video_name || '分析报告';
+      renderPreview(data);
+    })
+    .catch(e => {
+      body.innerHTML = '<div class="preview-loading"><div>加载失败: ' + e.message + '</div></div>';
+    });
+}
+
+function closeReportPreview() {
+  const overlay = document.getElementById('previewOverlay');
+  const panel = document.getElementById('previewPanel');
+  panel.classList.remove('active');
+  setTimeout(() => {
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }, 350);
+  if (pvBarChart) { pvBarChart.destroy(); pvBarChart = null; }
+  if (pvRadarChart) { pvRadarChart.destroy(); pvRadarChart = null; }
+  currentPreviewVideoId = null;
+}
+
+function renderPreview(data) {
+  const body = document.getElementById('previewBody');
+  const info = data.video_info || {};
+  const analysis = data.content_analysis || {};
+  let html = '';
+
+  // Basic Info (with cover)
+  html += '<div class="pv-section">';
+  html += '<div class="pv-section-title"><span class="pv-icon">&#9432;</span> 视频基本信息</div>';
+  html += '<div class="pv-info-with-cover">';
+  // Cover image
+  html += '<img src="/api/cover/' + (data.video_id || '') + '" class="pv-cover-img" alt="视频封面" title="右键可复制图片" onerror="this.style.display=\'none\'">';
+  // Info grid
+  html += '<div class="pv-info-grid" style="flex:1;">';
+  const infoItems = [
+    { label: '分辨率', value: (info.width || '?') + ' x ' + (info.height || '?') },
+    { label: '时长', value: (info.duration || '?') + ' 秒' },
+    { label: '帧率', value: (info.fps || '?') + ' fps' },
+    { label: '文件大小', value: info.file_size_mb ? info.file_size_mb + ' MB' : (info.file_size ? (info.file_size / 1024 / 1024).toFixed(1) + ' MB' : '-') },
+    { label: '音频', value: info.has_audio ? '有' : '无' },
+    { label: '分析时间', value: data.analyzed_at || data.created_at || '-' },
+    { label: '提取帧数', value: data.frames ? data.frames.frames_count + ' 帧' : '-' },
+    { label: '状态', value: data.status === 'analyzed' ? '已分析' : data.status || '-' },
+  ];
+  infoItems.forEach(item => {
+    html += '<div class="pv-info-item"><div class="pv-info-label">' + item.label + '</div><div class="pv-info-value">' + escHtml(String(item.value)) + '</div></div>';
+  });
+  html += '</div></div>';
+
+  // Tags
+  const tags = data.tags || {};
+  if (tags.category || tags.style || (tags.tags && tags.tags.length) || tags.duration_segment || tags.target_audience) {
+    html += '<div class="pv-tags-row">';
+    if (tags.category) html += '<span class="tag tag-category">' + escHtml(tags.category) + '</span>';
+    if (tags.style) html += '<span class="tag tag-style">' + escHtml(tags.style) + '</span>';
+    if (tags.duration_segment) html += '<span class="tag" style="background:rgba(52,152,219,0.15);color:#3498DB;">' + escHtml(tags.duration_segment) + '</span>';
+    if (tags.target_audience) html += '<span class="tag" style="background:rgba(241,196,15,0.15);color:#F1C40F;">' + escHtml(tags.target_audience) + '</span>';
+    if (tags.tags && tags.tags.length) {
+      tags.tags.forEach(t => { html += '<span class="tag tag-keyword">' + escHtml(t) + '</span>'; });
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Ad Data
+  const ad = data.ad_data || {};
+  const adKeys = ['cost','impressions','clicks','ctr','conversions','cpa','cvr','completion_rate'];
+  const hasAdData = adKeys.some(k => ad[k] !== undefined && ad[k] !== null);
+  if (hasAdData) {
+    html += '<div class="pv-section">';
+    html += '<div class="pv-section-title"><span class="pv-icon">&#128200;</span> 投放数据</div>';
+    html += '<div class="pv-ad-data-row">';
+    if (ad.cost) html += '<div class="pv-ad-chip"><span class="pv-ad-label">消耗</span><span class="pv-ad-value">' + ad.cost + '元</span></div>';
+    if (ad.impressions) html += '<div class="pv-ad-chip"><span class="pv-ad-label">展示</span><span class="pv-ad-value">' + Number(ad.impressions).toLocaleString() + '</span></div>';
+    if (ad.clicks) html += '<div class="pv-ad-chip"><span class="pv-ad-label">点击</span><span class="pv-ad-value">' + Number(ad.clicks).toLocaleString() + '</span></div>';
+    if (ad.ctr) html += '<div class="pv-ad-chip"><span class="pv-ad-label">CTR</span><span class="pv-ad-value">' + ad.ctr + '%</span></div>';
+    if (ad.conversions) html += '<div class="pv-ad-chip"><span class="pv-ad-label">转化</span><span class="pv-ad-value">' + ad.conversions + '</span></div>';
+    if (ad.cvr) html += '<div class="pv-ad-chip"><span class="pv-ad-label">CVR</span><span class="pv-ad-value">' + ad.cvr + '%</span></div>';
+    if (ad.cpa) html += '<div class="pv-ad-chip"><span class="pv-ad-label">CPA</span><span class="pv-ad-value">' + ad.cpa + '元</span></div>';
+    if (ad.completion_rate) html += '<div class="pv-ad-chip"><span class="pv-ad-label">完播率</span><span class="pv-ad-value">' + ad.completion_rate + '%</span></div>';
+    html += '</div></div>';
+  }
+
+  // Transcript
+  const transcript = data.transcript || {};
+  if (transcript.transcribed && transcript.full_text) {
+    html += '<div class="pv-section">';
+    html += '<div class="pv-section-title"><span class="pv-icon">&#128172;</span> 语音转文字 (' + escHtml(transcript.model || 'ASR') + ')</div>';
+    html += '<div class="pv-text-block">' + escHtml(transcript.full_text) + '</div>';
+    html += '</div>';
+  }
+
+  // Frame Analysis
+  const frameAnalysis = data.frame_analysis || {};
+  if (frameAnalysis.overall_visual) {
+    html += '<div class="pv-section">';
+    html += '<div class="pv-section-title"><span class="pv-icon">&#128065;</span> 关键帧画面分析 (' + escHtml(frameAnalysis.model || 'VL') + ', ' + (frameAnalysis.frames_analyzed || '?') + '/' + (frameAnalysis.total_frames || '?') + '帧)</div>';
+    html += '<div class="pv-text-block">' + escHtml(frameAnalysis.overall_visual) + '</div>';
+    if (frameAnalysis.frames && frameAnalysis.frames.length > 0) {
+      html += '<div class="pv-sub-title">逐帧分析</div>';
+      html += '<ul class="pv-bullet-list">';
+      frameAnalysis.frames.forEach(f => {
+        const text = f.text || '';
+        const content = f.content || '';
+        const change = f.change || '';
+        let detail = text;
+        if (content && content !== '场景与人物保持不变。' && content !== '场景与人物保持不变') detail += (detail ? '\n' : '') + content;
+        if (change && change !== '起始帧' && change !== '文字内容更新' && change !== '场景与人物保持不变') detail += (detail ? '\n' : '') + '[' + change + ']';
+        if (detail) html += '<li>' + escHtml(detail) + '</li>';
+      });
+      html += '</ul>';
+    }
+    html += '</div>';
+  }
+
+  // Scoring & Element Breakdown
+  const scoring = analysis.scoring || {};
+  const breakdown = analysis.element_breakdown || {};
+  const attribution = analysis.traffic_attribution || {};
+  const hasScoring = scoring.hook_strength || scoring.overall || (data.scoring && data.scoring.overall);
+  const actualScoring = hasScoring ? scoring : (data.scoring || {});
+  const hasBreakdown = breakdown.visual || breakdown.text || breakdown.audio || breakdown.structure;
+
+  if (hasScoring || hasBreakdown) {
+    html += '<div class="pv-section">';
+    html += '<div class="pv-section-title"><span class="pv-icon">&#129302;</span> AI 综合分析</div>';
+
+    // Element Breakdown
+    if (hasBreakdown) {
+      const sections = [
+        { key: 'visual', label: '画面元素', icon: '&#127916;' },
+        { key: 'text', label: '文案元素', icon: '&#128221;' },
+        { key: 'audio', label: '音频元素', icon: '&#127925;' },
+        { key: 'structure', label: '结构分析', icon: '&#128203;' },
+      ];
+      sections.forEach(sec => {
+        const data_sec = breakdown[sec.key];
+        if (!data_sec) return;
+        html += '<div class="pv-sub-title">' + sec.icon + ' ' + sec.label + '</div>';
+        html += '<ul class="pv-bullet-list">';
+        Object.entries(data_sec).forEach(([k, v]) => {
+          const labelMap = {
+            subject: '主体', scene: '场景', color_tone: '色调', composition: '构图', effects: '特效',
+            spoken: '口播文案', subtitles: '字幕', cta: '行动号召', headline: '标题/标贴',
+            voice_style: '声音风格', bgm_style: '背景音乐', sound_effects: '音效',
+            hook: '钩子', body: '主体', ending: '结尾', rhythm: '节奏'
+          };
+          const label = labelMap[k] || k;
+          const text = typeof v === 'string' ? v : JSON.stringify(v);
+          if (text && text.trim()) {
+            html += '<li><strong style="color:#8B8A86;">' + escHtml(label) + ':</strong> ' + escHtml(text) + '</li>';
+          }
+        });
+        html += '</ul>';
+      });
+    }
+
+    // Scoring
+    if (actualScoring.overall) {
+      html += '<div class="pv-sub-title">&#127942; 评分详情</div>';
+      html += '<div class="pv-score-grid">';
+
+      const dims = ['hook_strength', 'visual_quality', 'copy_quality', 'audio_quality', 'rhythm', 'conversion_guidance'];
+      dims.forEach(dim => {
+        const d = actualScoring[dim];
+        if (!d) return;
+        const score = d.score || 0;
+        const cls = score >= 7 ? 'score-excellent' : score >= 4 ? 'score-good' : 'score-fair';
+        html += '<div class="pv-score-card">';
+        html += '<div class="score-num ' + cls + '">' + score + '</div>';
+        html += '<div class="score-info"><div class="score-dim">' + escHtml(DIMENSION_LABELS[dim] || dim) + '</div>';
+        html += '<div class="score-comment">' + escHtml(d.comment || '') + '</div></div>';
+        html += '</div>';
+      });
+
+      // Overall
+      const ov = actualScoring.overall;
+      const ovScore = ov.score || 0;
+      const ovCls = ovScore >= 7 ? 'score-excellent' : ovScore >= 4 ? 'score-good' : 'score-fair';
+      html += '<div class="pv-score-card pv-score-overall">';
+      html += '<div class="score-num ' + ovCls + '" style="font-size:32px;">' + ovScore + '</div>';
+      html += '<div class="score-info"><div class="score-dim" style="color:#7C6AFF;">综合评分</div>';
+      html += '<div class="score-comment" style="-webkit-line-clamp:3;color:#8B8A86;">' + escHtml(ov.comment || '') + '</div></div>';
+      html += '</div>';
+      html += '</div>';
+
+      // Charts
+      html += '<div class="pv-charts">';
+      html += '<div class="pv-chart-box"><div class="pv-chart-label">维度评分对比</div><canvas id="pvBarChart"></canvas></div>';
+      html += '<div class="pv-chart-box"><div class="pv-chart-label">能力雷达图</div><canvas id="pvRadarChart"></canvas></div>';
+      html += '</div>';
+    }
+
+    html += '</div>';
+  }
+
+  // Traffic Attribution
+  if (attribution.ctr_drivers || attribution.cvr_drivers || attribution.completion_drivers || attribution.overall_assessment) {
+    html += '<div class="pv-section">';
+    html += '<div class="pv-section-title"><span class="pv-icon">&#128640;</span> 跑量归因分析</div>';
+
+    const attrSections = [
+      { key: 'ctr_drivers', label: 'CTR 驱动因素', icon: '&#128200;' },
+      { key: 'cvr_drivers', label: 'CVR 驱动因素', icon: '&#128176;' },
+      { key: 'completion_drivers', label: '完播率驱动因素', icon: '&#9201;' },
+      { key: 'potential_issues', label: '潜在问题', icon: '&#9888;' },
+    ];
+    attrSections.forEach(sec => {
+      const list = attribution[sec.key];
+      if (!list || !list.length) return;
+      html += '<div class="pv-sub-title">' + sec.icon + ' ' + sec.label + '</div>';
+      html += '<ul class="pv-bullet-list">';
+      list.forEach(item => {
+        html += '<li' + (sec.key === 'potential_issues' ? ' class="highlight"' : '') + '>' + escHtml(typeof item === 'string' ? item : JSON.stringify(item)) + '</li>';
+      });
+      html += '</ul>';
+    });
+
+    if (attribution.overall_assessment) {
+      html += '<div class="pv-sub-title">&#128209; 综合跑量评估</div>';
+      html += '<div class="pv-text-block" style="border-left:3px solid #7C6AFF;">' + escHtml(attribution.overall_assessment) + '</div>';
+    }
+
+    if (attribution.improvement_suggestions && attribution.improvement_suggestions.length) {
+      html += '<div class="pv-sub-title">&#128161; 改进建议</div>';
+      html += '<ul class="pv-bullet-list">';
+      attribution.improvement_suggestions.forEach((s, i) => {
+        html += '<li class="highlight">' + (i + 1) + '. ' + escHtml(typeof s === 'string' ? s : JSON.stringify(s)) + '</li>';
+      });
+      html += '</ul>';
+    }
+
+    html += '</div>';
+  }
+
+  // Not analyzed fallback
+  if (!hasScoring && !hasBreakdown && data.status !== 'analyzed') {
+    html += '<div class="pv-section" style="text-align:center;padding:60px 20px;color:#6B6A66;">';
+    html += '<div style="font-size:48px;opacity:0.5;margin-bottom:16px;">&#9203;</div>';
+    html += '<div>视频尚未完成分析</div>';
+    html += '<div style="font-size:12px;margin-top:8px;">当前状态: ' + escHtml(data.status || '处理中') + '</div>';
+    html += '</div>';
+  }
+
+  body.innerHTML = html;
+
+  // Render charts after DOM update
+  if (actualScoring.overall) {
+    setTimeout(() => renderPvCharts(actualScoring), 50);
+  }
+}
+
+function renderPvCharts(scoring) {
+  const dims = ['hook_strength', 'visual_quality', 'copy_quality', 'audio_quality', 'rhythm', 'conversion_guidance'];
+  const labels = dims.map(d => DIMENSION_LABELS[d] || d);
+  const scores = dims.map(d => (scoring[d] || {}).score || 0);
+
+  const getScoreColor = (s) => s >= 7 ? '#2ECC71' : s >= 4 ? '#F39C12' : '#E74C3C';
+
+  // Bar Chart
+  const barCtx = document.getElementById('pvBarChart');
+  if (barCtx) {
+    if (pvBarChart) pvBarChart.destroy();
+    pvBarChart = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: scores,
+          backgroundColor: scores.map(s => getScoreColor(s) + '44'),
+          borderColor: scores.map(s => getScoreColor(s)),
+          borderWidth: 1.5,
+          borderRadius: 4,
+          barThickness: 18,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+          x: { min: 0, max: 10, grid: { color: '#1E1E24' }, ticks: { color: '#6B6A66', font: { size: 11 } } },
+          y: { grid: { display: false }, ticks: { color: '#C8C6C1', font: { size: 12 } } }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1A1A24',
+            borderColor: '#2A2A36',
+            borderWidth: 1,
+            titleColor: '#F0EDE8',
+            bodyColor: '#C8C6C1',
+            callbacks: {
+              label: ctx => ctx.parsed.x + ' / 10'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Radar Chart
+  const radarCtx = document.getElementById('pvRadarChart');
+  if (radarCtx) {
+    if (pvRadarChart) pvRadarChart.destroy();
+    pvRadarChart = new Chart(radarCtx, {
+      type: 'radar',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: scores,
+          backgroundColor: 'rgba(124, 106, 255, 0.2)',
+          borderColor: '#7C6AFF',
+          borderWidth: 2,
+          pointBackgroundColor: '#7C6AFF',
+          pointBorderColor: '#7C6AFF',
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+          r: {
+            min: 0, max: 10,
+            grid: { color: '#1E1E24' },
+            angleLines: { color: '#1E1E24' },
+            ticks: { color: '#4A4A56', backdropColor: 'transparent', font: { size: 10 }, stepSize: 2 },
+            pointLabels: { color: '#C8C6C1', font: { size: 11 } }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1A1A24',
+            borderColor: '#2A2A36',
+            borderWidth: 1,
+            titleColor: '#F0EDE8',
+            bodyColor: '#C8C6C1',
+            callbacks: { label: ctx => ctx.parsed.r + ' / 10' }
+          }
+        }
+      }
+    });
+  }
+}
+
+// ESC to close
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && currentPreviewVideoId) closeReportPreview();
+});
+
+// ========== Init ==========
+document.addEventListener('DOMContentLoaded', () => {
+  checkStatus();
+  loadHistory();
+  loadConfig();
+});
+</script>
+
+</body>
+</html>
