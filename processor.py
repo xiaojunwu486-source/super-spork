@@ -14,6 +14,11 @@ from datetime import datetime
 # 全局变量
 
 
+def get_subprocess_creationflags():
+    """Windows 下隐藏 FFmpeg 控制台窗口，Linux/Render 下不传该参数。"""
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
 def get_api_key(key_name):
     """优先读取环境变量，兼容本地 config.json。"""
     env_value = os.environ.get(key_name.upper(), "").strip()
@@ -216,7 +221,7 @@ def get_video_info(video_path):
     result = subprocess.run(
         cmd,
         capture_output=True, timeout=30,
-        creationflags=subprocess.CREATE_NO_WINDOW
+        creationflags=get_subprocess_creationflags()
     )
     output = result.stderr.decode('utf-8', errors='replace') if result.stderr else ""
 
@@ -301,7 +306,7 @@ def extract_frames(video_path, output_dir, fps=2, progress_callback=None):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         encoding='utf-8', errors='replace',
-        creationflags=subprocess.CREATE_NO_WINDOW
+        creationflags=get_subprocess_creationflags()
     )
 
     # 读取 stderr 获取进度（FFmpeg 输出到 stderr），同时保留失败详情
@@ -1148,7 +1153,7 @@ def extract_audio(video_path, output_path, progress_callback=None):
         encoding="utf-8",
         errors="replace",
         timeout=120,
-        creationflags=subprocess.CREATE_NO_WINDOW
+        creationflags=get_subprocess_creationflags()
     )
 
     # 检查输出文件是否存在且大小 > 0
