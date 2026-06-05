@@ -283,7 +283,7 @@ def extract_frames(video_path, output_dir, fps=2, progress_callback=None):
         raise RuntimeError("无法读取视频信息")
 
     duration = info["duration"]
-    estimated_frames = int(duration * fps) + 1
+    estimated_frames = max(int(duration * fps) + 1, 1)
 
     if progress_callback:
         progress_callback(0, estimated_frames, "开始提取关键帧...")

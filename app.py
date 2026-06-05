@@ -50,6 +50,28 @@ task_results = {}
 
 
 # ========== 工具函数 ==========
+def get_env_float(name, default):
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def get_env_int(name, default):
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def get_frame_sampling(video_info):
+    """根据视频时长控制抽帧量，避免免费服务器长时间卡在 FFmpeg。"""
+    duration = max(float(video_info.get("duration") or 0), 1.0)
+    max_fps = max(get_env_float("FRAME_FPS", 1), 0.1)
+    max_frames = max(get_env_int("MAX_EXTRACTED_FRAMES", 24), 6)
+    return min(max_fps, max_frames / duration)
+
+
 def load_config():
     """加载 API 配置"""
     env_config = {
@@ -167,8 +189,9 @@ def process_video(video_id, video_path, video_name):
         progress("info", 1, 1, f"视频信息: {info['width']}x{info['height']}, {info['duration']}s")
 
         # Step 2: 提取关键帧
-        progress("frames", 0, 1, "正在提取关键帧...")
-        frames_result = extract_frames(video_path, frames_dir, fps=2,
+        frame_fps = get_frame_sampling(info)
+        progress("frames", 0, 1, f"正在提取关键帧，约 {frame_fps:.2f} 帧/秒...")
+        frames_result = extract_frames(video_path, frames_dir, fps=frame_fps,
                                         progress_callback=lambda c, t, m: progress("frames", c, t, m))
         result["frames"] = frames_result
 
@@ -214,7 +237,7 @@ def process_video(video_id, video_path, video_name):
         # Step 5: 画面分析 (通义千问 VL)
         progress("vl", 0, 1, "正在分析关键帧画面...")
         vl_result = analyze_frames(
-            frames_dir, video_dir, max_frames=10,
+            frames_dir, video_dir, max_frames=get_env_int("MAX_VL_FRAMES", 8),
             progress_callback=lambda c, t, m: progress("vl", c, t, m)
         )
         result["frame_analysis"] = vl_result
